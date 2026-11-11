@@ -46,6 +46,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -60,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.myphotocalendar.data.AppState
+import com.myphotocalendar.data.CalendarInfo
 import com.myphotocalendar.data.ShuffleFrequency
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -135,7 +137,7 @@ fun SettingsScreen(state: AppState, monthOffset: Int, onBack: () -> Unit) {
             IconButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to calendar")
             }
-            Text("$monthName look", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+            Text("Settings", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
         }
 
         Column(
@@ -295,6 +297,44 @@ fun SettingsScreen(state: AppState, monthOffset: Int, onBack: () -> Unit) {
 
                 SwitchRow("Bold text", state.bold) { state.updateBold(it) }
                 SwitchRow("Text shadow", state.textShadow) { state.updateTextShadow(it) }
+            }
+
+            // ---- Photos on other views ----
+            Section("PHOTOS ON OTHER VIEWS") {
+                Text("The month view always shows the photo. Choose which other views show it too.", fontSize = 12.sp, color = Gray)
+                SwitchRow("Week view", state.photoOnWeek) { state.updatePhotoOnWeek(it) }
+                SwitchRow("Day page", state.photoOnDay) { state.updatePhotoOnDay(it) }
+                SwitchRow("Schedule view", state.photoOnSchedule) { state.updatePhotoOnSchedule(it) }
+            }
+
+            // ---- Calendars ----
+            val calendars by produceState(emptyList<CalendarInfo>(), state.calendar.hasPermission) {
+                value = withContext(Dispatchers.IO) { state.calendar.allCalendars() }
+            }
+            Section("CALENDARS") {
+                if (!state.calendar.hasPermission) {
+                    Text("Allow calendar access on the month view to see your calendars here.", fontSize = 13.sp, color = Gray)
+                } else if (calendars.isEmpty()) {
+                    Text("No calendars found. Make sure your Google account is synced on this phone.", fontSize = 13.sp, color = Gray)
+                } else {
+                    Text("Switch off a calendar to hide its events in this app. Nothing is deleted.", fontSize = 12.sp, color = Gray)
+                    var lastAccount: String? = null
+                    calendars.forEach { cal ->
+                        if (cal.account != lastAccount) {
+                            Text(cal.account, fontSize = 12.sp, color = Gray, modifier = Modifier.padding(top = 4.dp))
+                            lastAccount = cal.account
+                        }
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(14.dp).background(eventColor(cal.color), CircleShape))
+                            Spacer(Modifier.size(10.dp))
+                            Text(cal.name, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                            Switch(
+                                checked = cal.id !in state.calendar.hiddenCalendars,
+                                onCheckedChange = { state.calendar.setCalendarShown(cal.id, it) },
+                            )
+                        }
+                    }
+                }
             }
 
             Text(

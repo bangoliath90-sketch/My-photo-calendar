@@ -74,6 +74,7 @@ fun MonthScreen(
     onDayClick: (LocalDate) -> Unit,
     onAddEvent: () -> Unit,
     onRequestCalendarAccess: () -> Unit,
+    onSwitchView: (ViewMode) -> Unit,
 ) {
     val today = remember { LocalDate.now() }
     val thisMonth = remember { YearMonth.from(today) }
@@ -100,9 +101,10 @@ fun MonthScreen(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 4.dp),
+                    .padding(start = 4.dp, end = 4.dp, top = 8.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                ViewMenuButton(ViewMode.MONTH, state.fontColor, onSwitchView)
                 Text(
                     text = monthLabel(shown),
                     style = textStyle.copy(fontSize = 24.sp),

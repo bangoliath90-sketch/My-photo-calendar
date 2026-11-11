@@ -31,11 +31,13 @@ data class CalendarInfo(
     val color: Int,
     val account: String,
     val isPrimary: Boolean,
+    val canEdit: Boolean = true,
 )
 
 /** One occurrence of an event, as shown on the calendar. */
 data class EventItem(
     val eventId: Long,
+    val calendarId: Long,
     val title: String,
     val begin: Long,
     val end: Long,
@@ -73,6 +75,19 @@ data class EventDraft(
 class CalendarRepo(private val context: Context) {
 
     private val resolver = context.contentResolver
+    private val prefs = context.getSharedPreferences("calendars", Context.MODE_PRIVATE)
+
+    /** Calendars you've switched off in this app. Doesn't affect other calendar apps. */
+    var hiddenCalendars by mutableStateOf(
+        prefs.getStringSet("hidden", emptySet())!!.mapNotNull { it.toLongOrNull() }.toSet()
+    )
+        private set
+
+    fun setCalendarShown(id: Long, shown: Boolean) {
+        hiddenCalendars = if (shown) hiddenCalendars - id else hiddenCalendars + id
+        prefs.edit().putStringSet("hidden", hiddenCalendars.map { it.toString() }.toSet()).apply()
+        version++
+    }
 
     var hasPermission by mutableStateOf(checkPermission())
         private set
@@ -133,6 +148,41 @@ class CalendarRepo(private val context: Context) {
         return list.sortedWith(compareByDescending<CalendarInfo> { it.isPrimary }.thenBy { it.name.lowercase() })
     }
 
+    /** Every calendar synced to this phone, including ones you can only read (like holidays). */
+    fun allCalendars(): List<CalendarInfo> {
+        if (!hasPermission) return emptyList()
+        val list = mutableListOf<CalendarInfo>()
+        val projection = arrayOf(
+            Calendars._ID,
+            Calendars.CALENDAR_DISPLAY_NAME,
+            Calendars.CALENDAR_COLOR,
+            Calendars.ACCOUNT_NAME,
+            Calendars.IS_PRIMARY,
+            Calendars.CALENDAR_ACCESS_LEVEL,
+        )
+        try {
+            resolver.query(Calendars.CONTENT_URI, projection, "${Calendars.VISIBLE} = 1", null, null)?.use { c ->
+                while (c.moveToNext()) {
+                    list += CalendarInfo(
+                        id = c.getLong(0),
+                        name = c.getString(1) ?: "Calendar",
+                        color = c.getInt(2),
+                        account = c.getString(3) ?: "",
+                        isPrimary = c.getInt(4) == 1,
+                        canEdit = c.getInt(5) >= Calendars.CAL_ACCESS_CONTRIBUTOR,
+                    )
+                }
+            }
+        } catch (e: SecurityException) {
+            return emptyList()
+        }
+        return list.sortedWith(
+            compareBy<CalendarInfo> { it.account.lowercase() }
+                .thenByDescending { it.isPrimary }
+                .thenBy { it.name.lowercase() }
+        )
+    }
+
     /** Events that happen on any day from [first] to [last], inclusive. */
     fun eventsBetween(first: LocalDate, last: LocalDate): List<EventItem> {
         if (!hasPermission) return emptyList()
@@ -153,7 +203,9 @@ class CalendarRepo(private val context: Context) {
             Instances.DISPLAY_COLOR,
             Instances.EVENT_LOCATION,
             Instances.RRULE,
+            Instances.CALENDAR_ID,
         )
+        val hidden = hiddenCalendars
         val items = mutableListOf<EventItem>()
         try {
             resolver.query(uri, projection, "${Instances.VISIBLE} = 1", null, "${Instances.BEGIN} ASC")?.use { c ->
@@ -171,8 +223,11 @@ class CalendarRepo(private val context: Context) {
                         lastDate = maxOf(startDate, Instant.ofEpochMilli(maxOf(b, e - 1)).atZone(zone).toLocalDate())
                     }
                     if (lastDate.isBefore(first) || startDate.isAfter(last)) continue
+                    val calendarId = c.getLong(8)
+                    if (calendarId in hidden) continue
                     items += EventItem(
                         eventId = c.getLong(0),
+                        calendarId = calendarId,
                         title = c.getString(1)?.takeIf { it.isNotBlank() } ?: "(No title)",
                         begin = b,
                         end = e,

@@ -45,6 +45,36 @@ class AppState(context: Context) {
     )
         private set
 
+    /** The view the app opens in: the last one you used. */
+    val startView: String = prefs.getString("view", "MONTH") ?: "MONTH"
+
+    fun updateStartView(name: String) {
+        prefs.edit().putString("view", name).apply()
+    }
+
+    /** Whether the week, day and schedule views show the month's photo. Off by default. */
+    var photoOnWeek by mutableStateOf(prefs.getBoolean("photoOnWeek", false))
+        private set
+    var photoOnDay by mutableStateOf(prefs.getBoolean("photoOnDay", false))
+        private set
+    var photoOnSchedule by mutableStateOf(prefs.getBoolean("photoOnSchedule", false))
+        private set
+
+    fun updatePhotoOnWeek(on: Boolean) {
+        photoOnWeek = on
+        prefs.edit().putBoolean("photoOnWeek", on).apply()
+    }
+
+    fun updatePhotoOnDay(on: Boolean) {
+        photoOnDay = on
+        prefs.edit().putBoolean("photoOnDay", on).apply()
+    }
+
+    fun updatePhotoOnSchedule(on: Boolean) {
+        photoOnSchedule = on
+        prefs.edit().putBoolean("photoOnSchedule", on).apply()
+    }
+
     /** Every photo you've added, oldest first. */
     val photos = mutableStateListOf<File>().apply { addAll(photoStore.list()) }
 

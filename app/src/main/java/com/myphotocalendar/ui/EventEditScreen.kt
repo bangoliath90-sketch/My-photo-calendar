@@ -82,9 +82,11 @@ private val ReminderChoices: List<Pair<Int?, String>> = listOf(
 private fun reminderLabel(minutes: Int?): String =
     ReminderChoices.firstOrNull { it.first == minutes }?.second ?: "$minutes minutes before"
 
-private fun newDraft(date: LocalDate): EventDraft {
+private fun newDraft(date: LocalDate, time: LocalTime?): EventDraft {
     val now = LocalDateTime.now()
-    val start = if (date == now.toLocalDate() && now.hour < 23) {
+    val start = if (time != null) {
+        time
+    } else if (date == now.toLocalDate() && now.hour < 23) {
         LocalTime.of(now.hour + 1, 0)
     } else {
         LocalTime.of(9, 0)
@@ -105,10 +107,11 @@ fun EventEditScreen(
     state: AppState,
     eventId: Long?,
     date: LocalDate,
+    startTime: LocalTime? = null,
     onDone: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    var draft by remember { mutableStateOf<EventDraft?>(if (eventId == null) newDraft(date) else null) }
+    var draft by remember { mutableStateOf<EventDraft?>(if (eventId == null) newDraft(date, startTime) else null) }
     var calendars by remember { mutableStateOf<List<CalendarInfo>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }

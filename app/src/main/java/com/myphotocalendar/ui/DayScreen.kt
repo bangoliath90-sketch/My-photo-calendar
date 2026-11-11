@@ -42,6 +42,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -70,25 +71,35 @@ fun DayScreen(
         value = withContext(Dispatchers.IO) { state.calendar.eventsBetween(date, date) }
     }
     val isToday = date == LocalDate.now()
+    val look = state.viewLook(state.photoOnDay)
 
     Box(Modifier.fillMaxSize().background(Color(0xFFF6F6F8))) {
+        if (look.photo) {
+            PhotoBackground(state, state.photoFor(YearMonth.from(date), LocalDate.now()), Modifier.fillMaxSize())
+        }
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             Row(
-                Modifier.fillMaxWidth().background(Color.White).padding(4.dp),
+                Modifier
+                    .fillMaxWidth()
+                    .background(if (look.photo) Color.Transparent else Color.White)
+                    .padding(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to month")
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = look.iconTint)
                 }
                 Column(Modifier.weight(1f)) {
-                    Text(date.format(dayTitleFormat), fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-                    Text(if (isToday) "Today" else date.year.toString(), fontSize = 13.sp, color = if (isToday) TodayBlue else Gray)
+                    Text(date.format(dayTitleFormat), style = look.text.copy(fontSize = 20.sp))
+                    Text(
+                        if (isToday) "Today" else date.year.toString(),
+                        style = look.text.copy(fontSize = 13.sp, color = if (isToday && !look.photo) TodayBlue else look.subtle),
+                    )
                 }
                 IconButton(onClick = { onDateChange(date.minusDays(1)) }) {
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Previous day")
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Previous day", tint = look.iconTint)
                 }
                 IconButton(onClick = { onDateChange(date.plusDays(1)) }) {
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next day")
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next day", tint = look.iconTint)
                 }
             }
 
@@ -96,12 +107,12 @@ fun DayScreen(
                 Text(
                     "Calendar access is off, so events can't be shown or added. Go back to the month view and tap Allow access.",
                     modifier = Modifier.padding(20.dp),
-                    fontSize = 15.sp,
+                    style = look.text.copy(fontSize = 15.sp),
                 )
             } else if (events.isEmpty()) {
                 Column(Modifier.fillMaxWidth().padding(top = 80.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Nothing scheduled", fontSize = 18.sp, fontWeight = FontWeight.Medium)
-                    Text("Tap Add event to schedule something.", fontSize = 14.sp, color = Gray)
+                    Text("Nothing scheduled", style = look.text.copy(fontSize = 18.sp))
+                    Text("Tap Add event to schedule something.", style = look.text.copy(fontSize = 14.sp, color = look.subtle))
                 }
             } else {
                 LazyColumn(
@@ -110,7 +121,7 @@ fun DayScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     items(events, key = { "${it.eventId}-${it.begin}" }) { ev ->
-                        EventRow(ev, date) { onOpenEvent(ev.eventId) }
+                        EventRow(ev, date, look.cardColor) { onOpenEvent(ev.eventId) }
                     }
                 }
             }
@@ -130,7 +141,7 @@ fun DayScreen(
 }
 
 @Composable
-private fun EventRow(ev: EventItem, date: LocalDate, onClick: () -> Unit) {
+private fun EventRow(ev: EventItem, date: LocalDate, cardColor: Color, onClick: () -> Unit) {
     val whenText = when {
         ev.allDay -> "All day"
         ev.startDate == date && ev.lastDate == date -> "${formatTime(ev.begin)} – ${formatTime(ev.end)}"
@@ -141,7 +152,7 @@ private fun EventRow(ev: EventItem, date: LocalDate, onClick: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
-            .background(Color.White, RoundedCornerShape(14.dp))
+            .background(cardColor, RoundedCornerShape(14.dp))
             .clickable { onClick() }
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
