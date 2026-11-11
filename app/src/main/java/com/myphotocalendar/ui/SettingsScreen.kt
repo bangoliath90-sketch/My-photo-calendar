@@ -37,6 +37,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -106,6 +110,8 @@ fun SettingsScreen(state: AppState, monthOffset: Int, onBack: () -> Unit, onAdju
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
+    // Which drop-down section is open; opening one closes the others.
+    var openSection by rememberSaveable { mutableStateOf<String?>(null) }
     var importing by remember { mutableStateOf(false) }
     var importMessage by remember { mutableStateOf<String?>(null) }
     var managing by remember { mutableStateOf(false) }
@@ -156,7 +162,7 @@ fun SettingsScreen(state: AppState, monthOffset: Int, onBack: () -> Unit, onAdju
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             // Live preview
             Box(
@@ -184,7 +190,7 @@ fun SettingsScreen(state: AppState, monthOffset: Int, onBack: () -> Unit, onAdju
             }
 
             // ---- Background photo ----
-            Section("BACKGROUND PHOTO") {
+            Section("Background photo", openSection, { openSection = it }) {
                 val pinned = state.isPinned(month.monthValue)
                 Text("$monthName uses", fontSize = 14.sp)
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
@@ -226,7 +232,7 @@ fun SettingsScreen(state: AppState, monthOffset: Int, onBack: () -> Unit, onAdju
             }
 
             // ---- Your photos ----
-            Section("YOUR PHOTOS (${state.photos.size})") {
+            Section("Your photos (${state.photos.size})", openSection, { openSection = it }) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Button(onClick = { openPicker() }, enabled = !importing) {
                         Icon(Icons.Filled.Add, contentDescription = null)
@@ -275,7 +281,7 @@ fun SettingsScreen(state: AppState, monthOffset: Int, onBack: () -> Unit, onAdju
 
             // ---- Text and readability ----
             // ---- Text style ----
-            Section("TEXT STYLE") {
+            Section("Text style", openSection, { openSection = it }) {
                 val ownLook = state.hasOwnLook(month.monthValue)
                 Text("Style settings apply to", fontSize = 14.sp)
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
@@ -335,7 +341,7 @@ fun SettingsScreen(state: AppState, monthOffset: Int, onBack: () -> Unit, onAdju
                 )
             }
 
-            Section("TEXT AND READABILITY") {
+            Section("Font color and readability", openSection, { openSection = it }) {
                 Text("Dim photo · ${(state.dim * 100).toInt()}%", fontSize = 14.sp)
                 Slider(
                     value = state.dim,
@@ -385,7 +391,7 @@ fun SettingsScreen(state: AppState, monthOffset: Int, onBack: () -> Unit, onAdju
             }
 
             // ---- Photos on other views ----
-            Section("PHOTOS ON OTHER VIEWS") {
+            Section("Photos on other views", openSection, { openSection = it }) {
                 Text("The month view always shows the photo. Choose which other views show it too.", fontSize = 12.sp, color = Gray)
                 SwitchRow("Week view", state.photoOnWeek) { state.updatePhotoOnWeek(it) }
                 SwitchRow("Day page", state.photoOnDay) { state.updatePhotoOnDay(it) }
@@ -393,7 +399,7 @@ fun SettingsScreen(state: AppState, monthOffset: Int, onBack: () -> Unit, onAdju
             }
 
             // ---- Reminders ----
-            Section("REMINDERS") {
+            Section("Reminders", openSection, { openSection = it }) {
                 SwitchRow("Show reminder notifications", state.notify) { state.updateNotify(it) }
                 Text(
                     "Reminders appear at the time you set on each event. If your phone's calendar app also shows them, " +
@@ -412,7 +418,7 @@ fun SettingsScreen(state: AppState, monthOffset: Int, onBack: () -> Unit, onAdju
             val calendars by produceState(emptyList<CalendarInfo>(), state.calendar.hasPermission) {
                 value = withContext(Dispatchers.IO) { state.calendar.allCalendars() }
             }
-            Section("CALENDARS") {
+            Section("Calendars", openSection, { openSection = it }) {
                 if (!state.calendar.hasPermission) {
                     Text("Allow calendar access on the month view to see your calendars here.", fontSize = 13.sp, color = Gray)
                 } else if (calendars.isEmpty()) {
@@ -449,16 +455,42 @@ fun SettingsScreen(state: AppState, monthOffset: Int, onBack: () -> Unit, onAdju
 }
 
 @Composable
-private fun Section(title: String, content: @Composable () -> Unit) {
+private fun Section(
+    title: String,
+    openSection: String?,
+    onOpenChange: (String?) -> Unit,
+    content: @Composable () -> Unit,
+) {
+    // The part before any "(count)" names the section, so it stays open when a count changes.
+    val key = title.substringBefore(" (")
+    val open = openSection == key
     Column(
         Modifier
             .fillMaxWidth()
             .background(Color.White, RoundedCornerShape(16.dp))
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Gray)
-        content()
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClickLabel = if (open) "Close $key" else "Open $key") {
+                    onOpenChange(if (open) null else key)
+                }
+                .padding(horizontal = 16.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(title, fontSize = 16.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+            Icon(
+                if (open) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                contentDescription = null,
+                tint = Gray,
+            )
+        }
+        AnimatedVisibility(visible = open) {
+            Column(
+                Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) { content() }
+        }
     }
 }
 
