@@ -354,6 +354,7 @@ fun EventEditScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RepeatChooser(d: EventDraft, onChange: (EventDraft) -> Unit) {
     val options = repeatOptions(d.startDate)
