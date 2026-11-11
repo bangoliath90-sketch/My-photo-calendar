@@ -11,7 +11,7 @@ A personal Android calendar, like Google Calendar, with your own photo filling t
 
 Every change pushed to `main` builds a new version automatically (see the **Actions** tab).
 
-## What's in this version (phase 1)
+## What's in this version
 
 - Month view, week starting on Sunday, swipe left/right to change months
 - Full-screen photo background for each month
@@ -19,8 +19,10 @@ Every change pushed to `main` builds a new version automatically (see the **Acti
 - Each month either shuffles through all your photos or uses one photo you choose (repeats every year)
 - Shuffle timing: each open, daily, weekly or monthly
 - Dim slider, font color, bold and text shadow
+- Your Google Calendar events shown on the month view (through the phone's synced calendar)
+- Tap any day to see its schedule; add, edit and delete events with times, calendar, reminder, location and notes
 
-Coming next: your Google Calendar events, then week/day/schedule views, editing, reminders and the widget.
+Coming next: week and schedule views, showing/hiding calendars, editing repeating events, the app's own reminders, and the widget.
 
 ## Notes
 

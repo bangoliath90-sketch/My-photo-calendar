@@ -26,6 +26,7 @@ class AppState(context: Context) {
 
     private val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
     val photoStore = PhotoStore(context)
+    val calendar = CalendarRepo(context)
 
     /** Changes every time the app is opened; used by "Each open" shuffle. */
     private val sessionSeed = Random.nextLong()
