@@ -137,7 +137,7 @@ fun WeekScreen(
     onSwitchView: (ViewMode) -> Unit,
     onOpenSettings: () -> Unit,
     onDayClick: (LocalDate) -> Unit,
-    onOpenEvent: (Long, LocalDate) -> Unit,
+    onOpenEvent: (EventItem, LocalDate) -> Unit,
     onNewEvent: (LocalDate, LocalTime?) -> Unit,
 ) {
     val today = remember { LocalDate.now() }
@@ -195,7 +195,7 @@ private fun WeekPage(
     today: LocalDate,
     look: ViewLook,
     onDayClick: (LocalDate) -> Unit,
-    onOpenEvent: (Long, LocalDate) -> Unit,
+    onOpenEvent: (EventItem, LocalDate) -> Unit,
     onNewEvent: (LocalDate, LocalTime?) -> Unit,
 ) {
     val days = (0..6).map { start.plusDays(it.toLong()) }
@@ -249,7 +249,7 @@ private fun WeekPage(
                                     .fillMaxWidth()
                                     .padding(bottom = 2.dp)
                                     .background(eventColor(ev.color), RoundedCornerShape(4.dp))
-                                    .clickable { onOpenEvent(ev.eventId, days[i]) }
+                                    .clickable { onOpenEvent(ev, days[i]) }
                                     .padding(horizontal = 3.dp, vertical = 1.dp),
                             )
                         }
@@ -307,7 +307,7 @@ private fun DayColumn(
     isToday: Boolean,
     placed: List<Placed>,
     look: ViewLook,
-    onOpenEvent: (Long) -> Unit,
+    onOpenEvent: (EventItem) -> Unit,
     onTapHour: (Int) -> Unit,
     modifier: Modifier,
 ) {
@@ -335,7 +335,7 @@ private fun DayColumn(
                     .height(HourHeight * ((p.endMin - p.startMin) / 60f))
                     .padding(1.dp)
                     .background(eventColor(p.ev.color), RoundedCornerShape(4.dp))
-                    .clickable { onOpenEvent(p.ev.eventId) }
+                    .clickable { onOpenEvent(p.ev) }
                     .padding(horizontal = 2.dp, vertical = 1.dp)
             ) {
                 Text(p.ev.title, color = Color.White, fontSize = 10.sp, lineHeight = 12.sp, overflow = TextOverflow.Clip)

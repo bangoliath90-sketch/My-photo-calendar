@@ -59,7 +59,7 @@ fun ScheduleScreen(
     onSwitchView: (ViewMode) -> Unit,
     onOpenSettings: () -> Unit,
     onDayClick: (LocalDate) -> Unit,
-    onOpenEvent: (Long, LocalDate) -> Unit,
+    onOpenEvent: (EventItem, LocalDate) -> Unit,
     onNewEvent: (LocalDate) -> Unit,
 ) {
     val today = remember { LocalDate.now() }
@@ -149,7 +149,7 @@ private fun DayBlock(
     today: LocalDate,
     look: ViewLook,
     onDayClick: (LocalDate) -> Unit,
-    onOpenEvent: (Long, LocalDate) -> Unit,
+    onOpenEvent: (EventItem, LocalDate) -> Unit,
 ) {
     val isToday = row.date == today
     androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
@@ -191,7 +191,7 @@ private fun DayBlock(
                     Modifier
                         .fillMaxWidth()
                         .background(eventColor(ev.color), RoundedCornerShape(10.dp))
-                        .clickable { onOpenEvent(ev.eventId, row.date) }
+                        .clickable { onOpenEvent(ev, row.date) }
                         .padding(horizontal = 12.dp, vertical = 8.dp)
                 ) {
                     Text(ev.title, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Medium)

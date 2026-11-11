@@ -30,6 +30,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -51,7 +52,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.myphotocalendar.data.AppState
 import com.myphotocalendar.data.CalendarInfo
+import com.myphotocalendar.data.EditScope
 import com.myphotocalendar.data.EventDraft
+import com.myphotocalendar.data.matchingOption
+import com.myphotocalendar.data.repeatOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -108,6 +112,7 @@ fun EventEditScreen(
     eventId: Long?,
     date: LocalDate,
     startTime: LocalTime? = null,
+    instanceBegin: Long? = null,
     onDone: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -116,12 +121,14 @@ fun EventEditScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    // For repeating events: asks "this event / following / all" before saving or deleting.
+    var askScopeFor by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(eventId) {
         val cals = withContext(Dispatchers.IO) { state.calendar.writableCalendars() }
         calendars = cals
         if (eventId != null) {
-            val loaded = withContext(Dispatchers.IO) { state.calendar.loadDraft(eventId) }
+            val loaded = withContext(Dispatchers.IO) { state.calendar.loadDraft(eventId, instanceBegin) }
             if (loaded == null) {
                 error = "This event couldn't be found. It may have been deleted."
             } else {
@@ -133,7 +140,23 @@ fun EventEditScreen(
     }
 
     val d = draft
-    val readOnly = d?.recurring == true
+    val readOnly = false
+
+    fun runSave(current: EventDraft, scopeChoice: EditScope) {
+        saving = true
+        scope.launch {
+            val ok = withContext(Dispatchers.IO) { state.calendar.save(current, scopeChoice) }
+            saving = false
+            if (ok) onDone() else error = "Couldn't save the event. Please try again."
+        }
+    }
+
+    fun runDelete(current: EventDraft, scopeChoice: EditScope) {
+        scope.launch {
+            val ok = withContext(Dispatchers.IO) { state.calendar.delete(current, scopeChoice) }
+            if (ok) onDone() else error = "Couldn't delete the event."
+        }
+    }
 
     fun save() {
         val current = draft ?: return
@@ -147,12 +170,7 @@ fun EventEditScreen(
             error = "No calendar to save to. Make sure your Google account is synced on this phone."
             return
         }
-        saving = true
-        scope.launch {
-            val ok = withContext(Dispatchers.IO) { state.calendar.save(current) }
-            saving = false
-            if (ok) onDone() else error = "Couldn't save the event. Please try again."
-        }
+        if (current.series != null) askScopeFor = "save" else runSave(current, EditScope.ALL)
     }
 
     Column(
@@ -259,6 +277,8 @@ fun EventEditScreen(
                 }
             }
 
+            RepeatChooser(d) { draft = it }
+
             ReminderChooser(d.reminderMinutes, enabled = !readOnly) { draft = d.copy(reminderMinutes = it) }
 
             OutlinedTextField(
@@ -289,7 +309,7 @@ fun EventEditScreen(
         }
     }
 
-    if (confirmDelete && eventId != null) {
+    if (confirmDelete && d != null) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text("Delete this event?") },
@@ -297,14 +317,108 @@ fun EventEditScreen(
             confirmButton = {
                 TextButton(onClick = {
                     confirmDelete = false
-                    scope.launch {
-                        val ok = withContext(Dispatchers.IO) { state.calendar.delete(eventId) }
-                        if (ok) onDone() else error = "Couldn't delete the event."
-                    }
+                    if (d.series != null) askScopeFor = "delete" else runDelete(d, EditScope.ALL)
                 }) { Text("Delete", color = Color(0xFFC5221F)) }
             },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } },
         )
+    }
+
+    val action = askScopeFor
+    if (action != null && d != null) {
+        var choice by remember(action) { mutableStateOf(EditScope.THIS) }
+        AlertDialog(
+            onDismissRequest = { askScopeFor = null },
+            title = { Text(if (action == "save") "Save repeating event" else "Delete repeating event") },
+            text = {
+                Column {
+                    EditScope.entries.forEach { option ->
+                        Row(
+                            Modifier.fillMaxWidth().clickable { choice = option }.padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(selected = choice == option, onClick = { choice = option })
+                            Text(option.label, fontSize = 16.sp)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    askScopeFor = null
+                    if (action == "save") runSave(d, choice) else runDelete(d, choice)
+                }) { Text(if (action == "save") "Save" else "Delete") }
+            },
+            dismissButton = { TextButton(onClick = { askScopeFor = null }) { Text("Cancel") } },
+        )
+    }
+}
+
+@Composable
+private fun RepeatChooser(d: EventDraft, onChange: (EventDraft) -> Unit) {
+    val options = repeatOptions(d.startDate)
+    val match = matchingOption(d.rule, d.startDate)
+    val label = match?.label ?: "Custom (made in Google Calendar)"
+    var open by remember { mutableStateOf(false) }
+    var pickUntil by remember { mutableStateOf(false) }
+
+    Box {
+        LabeledValue(label = "Repeat", value = label, onClick = { open = true })
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option.label) },
+                    onClick = {
+                        open = false
+                        onChange(d.copy(rule = option.rule, repeatCount = if (option.rule == null) null else d.repeatCount))
+                    },
+                )
+            }
+        }
+    }
+
+    if (d.rule != null) {
+        var endsOpen by remember { mutableStateOf(false) }
+        val endsLabel = when {
+            d.repeatUntil != null -> "Until ${d.repeatUntil.format(dateFormat)}"
+            d.repeatCount != null -> "After ${d.repeatCount} times"
+            else -> "Never"
+        }
+        Box {
+            LabeledValue(label = "Ends", value = endsLabel, onClick = { endsOpen = true })
+            DropdownMenu(expanded = endsOpen, onDismissRequest = { endsOpen = false }) {
+                DropdownMenuItem(text = { Text("Never") }, onClick = {
+                    endsOpen = false
+                    onChange(d.copy(repeatUntil = null, repeatCount = null))
+                })
+                DropdownMenuItem(text = { Text("On a date…") }, onClick = {
+                    endsOpen = false
+                    pickUntil = true
+                })
+            }
+        }
+    }
+
+    if (pickUntil) {
+        val initial = d.repeatUntil ?: d.startDate.plusMonths(3)
+        val pickerState = rememberDatePickerState(
+            initialSelectedDateMillis = initial.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+        )
+        DatePickerDialog(
+            onDismissRequest = { pickUntil = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    pickerState.selectedDateMillis?.let {
+                        val chosen = Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate()
+                        onChange(d.copy(repeatUntil = maxOf(chosen, d.startDate), repeatCount = null))
+                    }
+                    pickUntil = false
+                }) { Text("OK") }
+            },
+            dismissButton = { TextButton(onClick = { pickUntil = false }) { Text("Cancel") } },
+        ) {
+            DatePicker(state = pickerState)
+        }
     }
 }
 

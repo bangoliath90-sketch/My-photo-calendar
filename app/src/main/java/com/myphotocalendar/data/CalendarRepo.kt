@@ -65,7 +65,23 @@ data class EventDraft(
     val description: String = "",
     /** Minutes before the event, or null for no reminder. */
     val reminderMinutes: Int? = 30,
-    val recurring: Boolean = false,
+    /** How it repeats (an RRULE without its end), or null if it doesn't. */
+    val rule: String? = null,
+    /** Last day it repeats, or null for no end date. */
+    val repeatUntil: LocalDate? = null,
+    /** Number of times it repeats, kept from rules made in Google Calendar. */
+    val repeatCount: Int? = null,
+    /** Set when editing an existing repeating event. */
+    val series: SeriesInfo? = null,
+)
+
+/** Where an existing repeating event came from, needed to change part of the series. */
+data class SeriesInfo(
+    val rule: String,
+    val allDay: Boolean,
+    val firstDate: LocalDate,
+    val instanceDate: LocalDate,
+    val instanceBegin: Long,
 )
 
 /**
@@ -247,8 +263,11 @@ class CalendarRepo(private val context: Context) {
         return items.sortedWith(compareBy<EventItem> { !it.allDay }.thenBy { it.begin })
     }
 
-    /** Loads an event for editing, or null if it no longer exists. */
-    fun loadDraft(eventId: Long): EventDraft? {
+    /**
+     * Loads an event for editing, or null if it no longer exists. For a repeating
+     * event, [instanceBegin] says which occurrence was tapped.
+     */
+    fun loadDraft(eventId: Long, instanceBegin: Long?): EventDraft? {
         if (!hasPermission) return null
         val zone = ZoneId.systemDefault()
         val projection = arrayOf(
@@ -260,14 +279,25 @@ class CalendarRepo(private val context: Context) {
             Events.EVENT_LOCATION,
             Events.DESCRIPTION,
             Events.RRULE,
+            Events.DURATION,
         )
         val draft = try {
             resolver.query(ContentUris.withAppendedId(Events.CONTENT_URI, eventId), projection, null, null, null)?.use { c ->
                 if (!c.moveToFirst()) return@use null
                 val allDay = c.getInt(3) == 1
-                val start = c.getLong(1)
-                val end = if (c.isNull(2)) start + 3_600_000L else c.getLong(2)
+                val rrule = c.getString(7)?.takeIf { it.isNotBlank() }
+                val seriesStart = c.getLong(1)
                 val tz = if (allDay) ZoneOffset.UTC else zone
+                val start: Long
+                val end: Long
+                if (rrule != null) {
+                    val length = (parseDurationSeconds(c.getString(8)) ?: if (allDay) 86_400L else 3_600L) * 1000
+                    start = instanceBegin ?: seriesStart
+                    end = start + length
+                } else {
+                    start = seriesStart
+                    end = if (c.isNull(2)) start + 3_600_000L else c.getLong(2)
+                }
                 val s = Instant.ofEpochMilli(start).atZone(tz).toLocalDateTime()
                 var e = Instant.ofEpochMilli(end).atZone(tz).toLocalDateTime()
                 if (allDay) e = e.minusDays(1)
@@ -283,7 +313,18 @@ class CalendarRepo(private val context: Context) {
                     location = c.getString(5) ?: "",
                     description = c.getString(6) ?: "",
                     reminderMinutes = null,
-                    recurring = !c.getString(7).isNullOrBlank(),
+                    rule = rrule?.let { baseRule(it) },
+                    repeatUntil = rrule?.let { untilDate(it) },
+                    repeatCount = rrule?.let { countOf(it) },
+                    series = rrule?.let {
+                        SeriesInfo(
+                            rule = it,
+                            allDay = allDay,
+                            firstDate = millisToDate(seriesStart, allDay),
+                            instanceDate = s.toLocalDate(),
+                            instanceBegin = start,
+                        )
+                    },
                 )
             }
         } catch (e: SecurityException) {
@@ -304,57 +345,151 @@ class CalendarRepo(private val context: Context) {
         return draft.copy(reminderMinutes = minutes)
     }
 
-    /** Saves a new or changed event. Returns false if it couldn't be saved. */
-    fun save(draft: EventDraft): Boolean {
-        if (!hasPermission) return false
-        val zone = ZoneId.systemDefault()
-        val values = ContentValues().apply {
-            put(Events.TITLE, draft.title.trim())
-            put(Events.EVENT_LOCATION, draft.location.trim())
-            put(Events.DESCRIPTION, draft.description.trim())
-            if (draft.allDay) {
-                put(Events.ALL_DAY, 1)
-                put(Events.EVENT_TIMEZONE, "UTC")
-                put(Events.DTSTART, draft.startDate.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())
-                put(Events.DTEND, draft.endDate.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())
-            } else {
-                put(Events.ALL_DAY, 0)
-                put(Events.EVENT_TIMEZONE, zone.id)
-                put(Events.DTSTART, LocalDateTime.of(draft.startDate, draft.startTime).atZone(zone).toInstant().toEpochMilli())
-                put(Events.DTEND, LocalDateTime.of(draft.endDate, draft.endTime).atZone(zone).toInstant().toEpochMilli())
-            }
+    private fun startMillis(d: EventDraft, date: LocalDate = d.startDate): Long =
+        if (d.allDay) date.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+        else LocalDateTime.of(date, d.startTime).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+    private fun endMillis(d: EventDraft): Long =
+        if (d.allDay) d.endDate.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+        else LocalDateTime.of(d.endDate, d.endTime).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+    /** Title, place, notes and time zone: the parts every save writes. */
+    private fun baseValues(d: EventDraft) = ContentValues().apply {
+        put(Events.TITLE, d.title.trim())
+        put(Events.EVENT_LOCATION, d.location.trim())
+        put(Events.DESCRIPTION, d.description.trim())
+        put(Events.ALL_DAY, if (d.allDay) 1 else 0)
+        put(Events.EVENT_TIMEZONE, if (d.allDay) "UTC" else ZoneId.systemDefault().id)
+    }
+
+    /** Adds the start, and either an end (one-off) or a length and rule (repeating). */
+    private fun ContentValues.putTiming(d: EventDraft, start: Long) {
+        val rule = d.rule
+        val length = endMillis(d) - startMillis(d)
+        put(Events.DTSTART, start)
+        if (rule != null) {
+            putNull(Events.DTEND)
+            put(Events.DURATION, if (d.allDay) "P${maxOf(1L, length / 86_400_000L)}D" else "P${maxOf(0L, length / 1000)}S")
+            put(Events.RRULE, fullRule(rule, d.repeatUntil, d.repeatCount, d.allDay))
+        } else {
+            put(Events.DTEND, start + length)
+            putNull(Events.DURATION)
+            putNull(Events.RRULE)
         }
+    }
+
+    private fun setReminder(eventId: Long, minutes: Int?) {
+        resolver.delete(Reminders.CONTENT_URI, "${Reminders.EVENT_ID} = ?", arrayOf(eventId.toString()))
+        if (minutes != null) {
+            resolver.insert(Reminders.CONTENT_URI, ContentValues().apply {
+                put(Reminders.EVENT_ID, eventId)
+                put(Reminders.MINUTES, minutes)
+                put(Reminders.METHOD, Reminders.METHOD_ALERT)
+            })
+        }
+    }
+
+    private fun insertNew(d: EventDraft, calendarId: Long): Boolean {
+        val values = baseValues(d).apply {
+            put(Events.CALENDAR_ID, calendarId)
+            putTiming(d, startMillis(d))
+        }
+        val uri = resolver.insert(Events.CONTENT_URI, values) ?: return false
+        setReminder(ContentUris.parseId(uri), d.reminderMinutes)
+        return true
+    }
+
+    /** Ends a series on the day before [instanceDate]. */
+    private fun endSeriesBefore(eventId: Long, series: SeriesInfo) {
+        val rule = fullRule(baseRule(series.rule), series.instanceDate.minusDays(1), null, series.allDay)
+        resolver.update(
+            ContentUris.withAppendedId(Events.CONTENT_URI, eventId),
+            ContentValues().apply { put(Events.RRULE, rule) },
+            null,
+            null,
+        )
+    }
+
+    /** Saves a new or changed event. Returns false if it couldn't be saved. */
+    fun save(draft: EventDraft, scope: EditScope = EditScope.ALL): Boolean {
+        if (!hasPermission) return false
         return try {
-            val eventId: Long
-            if (draft.id == null) {
-                val calendarId = draft.calendarId ?: return false
-                values.put(Events.CALENDAR_ID, calendarId)
-                val uri = resolver.insert(Events.CONTENT_URI, values) ?: return false
-                eventId = ContentUris.parseId(uri)
-            } else {
-                eventId = draft.id
-                resolver.update(ContentUris.withAppendedId(Events.CONTENT_URI, eventId), values, null, null)
-                resolver.delete(Reminders.CONTENT_URI, "${Reminders.EVENT_ID} = ?", arrayOf(eventId.toString()))
-            }
-            draft.reminderMinutes?.let { minutes ->
-                resolver.insert(Reminders.CONTENT_URI, ContentValues().apply {
-                    put(Reminders.EVENT_ID, eventId)
-                    put(Reminders.MINUTES, minutes)
-                    put(Reminders.METHOD, Reminders.METHOD_ALERT)
-                })
-            }
-            version++
-            true
+            val id = draft.id
+            val series = draft.series
+            when {
+                id == null -> insertNew(draft, draft.calendarId ?: return false)
+
+                series == null -> {
+                    val values = baseValues(draft).apply { putTiming(draft, startMillis(draft)) }
+                    resolver.update(ContentUris.withAppendedId(Events.CONTENT_URI, id), values, null, null)
+                    setReminder(id, draft.reminderMinutes)
+                    true
+                }
+
+                scope == EditScope.THIS -> {
+                    // A one-off change to a single occurrence.
+                    val values = baseValues(draft).apply {
+                        put(Events.ORIGINAL_INSTANCE_TIME, series.instanceBegin)
+                        put(Events.ORIGINAL_ALL_DAY, if (series.allDay) 1 else 0)
+                        put(Events.DTSTART, startMillis(draft))
+                        put(Events.DTEND, endMillis(draft))
+                        put(Events.STATUS, Events.STATUS_CONFIRMED)
+                    }
+                    val uri = resolver.insert(ContentUris.withAppendedId(Events.CONTENT_EXCEPTION_URI, id), values)
+                        ?: return false
+                    val newId = ContentUris.parseId(uri)
+                    if (newId > 0) setReminder(newId, draft.reminderMinutes)
+                    true
+                }
+
+                scope == EditScope.FOLLOWING && series.instanceDate.isAfter(series.firstDate) -> {
+                    endSeriesBefore(id, series)
+                    insertNew(draft.copy(id = null, series = null), draft.calendarId ?: return false)
+                }
+
+                else -> {
+                    // The whole series. Move its first date by however far this occurrence moved.
+                    val shift = java.time.temporal.ChronoUnit.DAYS.between(series.instanceDate, draft.startDate)
+                    val firstDate = series.firstDate.plusDays(shift)
+                    val start = if (draft.rule == null) startMillis(draft) else startMillis(draft, firstDate)
+                    val values = baseValues(draft).apply { putTiming(draft, start) }
+                    resolver.update(ContentUris.withAppendedId(Events.CONTENT_URI, id), values, null, null)
+                    setReminder(id, draft.reminderMinutes)
+                    true
+                }
+            }.also { version++ }
         } catch (e: Exception) {
             false
         }
     }
 
-    fun delete(eventId: Long): Boolean = try {
-        val rows = resolver.delete(ContentUris.withAppendedId(Events.CONTENT_URI, eventId), null, null)
-        version++
-        rows > 0
-    } catch (e: Exception) {
-        false
+    /** Deletes an event, or part of a repeating one. */
+    fun delete(draft: EventDraft, scope: EditScope = EditScope.ALL): Boolean {
+        val id = draft.id ?: return false
+        val series = draft.series
+        return try {
+            val ok = when {
+                series == null || scope == EditScope.ALL ||
+                    (scope == EditScope.FOLLOWING && !series.instanceDate.isAfter(series.firstDate)) ->
+                    resolver.delete(ContentUris.withAppendedId(Events.CONTENT_URI, id), null, null) > 0
+
+                scope == EditScope.THIS -> {
+                    val values = ContentValues().apply {
+                        put(Events.ORIGINAL_INSTANCE_TIME, series.instanceBegin)
+                        put(Events.STATUS, Events.STATUS_CANCELED)
+                    }
+                    resolver.insert(ContentUris.withAppendedId(Events.CONTENT_EXCEPTION_URI, id), values) != null
+                }
+
+                else -> {
+                    endSeriesBefore(id, series)
+                    true
+                }
+            }
+            version++
+            ok
+        } catch (e: Exception) {
+            false
+        }
     }
 }

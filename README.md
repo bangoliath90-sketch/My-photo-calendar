@@ -22,7 +22,10 @@ Every change pushed to `main` builds a new version automatically (see the **Acti
 - Your Google Calendar events shown on the month view (through the phone's synced calendar)
 - Tap any day to see its schedule; add, edit and delete events with times, calendar, reminder, location and notes
 
-Coming next: week and schedule views, showing/hiding calendars, editing repeating events, the app's own reminders, and the widget.
+- Week and schedule views; show or hide calendars; photo option per view
+- Repeating events: create them, and change or delete one occurrence, the following ones, or the whole series
+
+Coming next: the app's own reminders, the widget, and photo move & zoom.
 
 ## Notes
 

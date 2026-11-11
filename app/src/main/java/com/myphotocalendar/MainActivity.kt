@@ -35,7 +35,12 @@ import java.time.LocalTime
 sealed interface Screen {
     data object Settings : Screen
     data class Day(val date: LocalDate) : Screen
-    data class EditEvent(val eventId: Long?, val date: LocalDate, val time: LocalTime? = null) : Screen
+    data class EditEvent(
+        val eventId: Long?,
+        val date: LocalDate,
+        val time: LocalTime? = null,
+        val begin: Long? = null,
+    ) : Screen
 }
 
 class MainActivity : ComponentActivity() {
@@ -100,7 +105,7 @@ class MainActivity : ComponentActivity() {
                             onSwitchView = { switchView(it) },
                             onOpenSettings = { stack.add(Screen.Settings) },
                             onDayClick = { stack.add(Screen.Day(it)) },
-                            onOpenEvent = { id, day -> stack.add(Screen.EditEvent(id, day)) },
+                            onOpenEvent = { ev, day -> stack.add(Screen.EditEvent(ev.eventId, day, begin = ev.begin)) },
                             onNewEvent = { day, time -> stack.add(Screen.EditEvent(null, day, time)) },
                         )
                         ViewMode.SCHEDULE -> ScheduleScreen(
@@ -108,7 +113,7 @@ class MainActivity : ComponentActivity() {
                             onSwitchView = { switchView(it) },
                             onOpenSettings = { stack.add(Screen.Settings) },
                             onDayClick = { stack.add(Screen.Day(it)) },
-                            onOpenEvent = { id, day -> stack.add(Screen.EditEvent(id, day)) },
+                            onOpenEvent = { ev, day -> stack.add(Screen.EditEvent(ev.eventId, day, begin = ev.begin)) },
                             onNewEvent = { stack.add(Screen.EditEvent(null, it)) },
                         )
                     }
@@ -123,7 +128,7 @@ class MainActivity : ComponentActivity() {
                         onDateChange = { stack[stack.lastIndex] = Screen.Day(it) },
                         onBack = { back() },
                         onAddEvent = { stack.add(Screen.EditEvent(null, it)) },
-                        onOpenEvent = { stack.add(Screen.EditEvent(it, top.date)) },
+                        onOpenEvent = { stack.add(Screen.EditEvent(it.eventId, top.date, begin = it.begin)) },
                     )
                     is Screen.EditEvent -> key(top) {
                         EventEditScreen(
@@ -131,6 +136,7 @@ class MainActivity : ComponentActivity() {
                             eventId = top.eventId,
                             date = top.date,
                             startTime = top.time,
+                            instanceBegin = top.begin,
                             onDone = { back() },
                         )
                     }

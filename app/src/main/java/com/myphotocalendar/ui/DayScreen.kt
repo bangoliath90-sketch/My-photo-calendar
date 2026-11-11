@@ -62,7 +62,7 @@ fun DayScreen(
     onDateChange: (LocalDate) -> Unit,
     onBack: () -> Unit,
     onAddEvent: (LocalDate) -> Unit,
-    onOpenEvent: (Long) -> Unit,
+    onOpenEvent: (EventItem) -> Unit,
 ) {
     val events by produceState(
         initialValue = emptyList<EventItem>(),
@@ -121,7 +121,7 @@ fun DayScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     items(events, key = { "${it.eventId}-${it.begin}" }) { ev ->
-                        EventRow(ev, date, look.cardColor) { onOpenEvent(ev.eventId) }
+                        EventRow(ev, date, look.cardColor) { onOpenEvent(ev) }
                     }
                 }
             }
