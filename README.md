@@ -28,7 +28,7 @@ Every change pushed to `main` builds a new version automatically (see the **Acti
 - Reminder notifications from the app itself (tap one to open that day)
 - Home-screen widget with this month's photo and your next events
 
-Coming next: photo move & zoom and per-month styles.
+- Move & zoom each photo; give any month its own text style
 
 ## Notes
 

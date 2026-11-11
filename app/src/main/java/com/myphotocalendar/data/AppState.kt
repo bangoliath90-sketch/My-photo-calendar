@@ -2,7 +2,7 @@ package com.myphotocalendar.data
 
 import android.content.Context
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -31,14 +31,102 @@ class AppState(context: Context) {
     /** Changes every time the app is opened; used by "Each open" shuffle. */
     private val sessionSeed = Random.nextLong()
 
-    var fontColor by mutableStateOf(Color(prefs.getInt("fontColor", Color.White.toArgb())))
-        private set
-    var bold by mutableStateOf(prefs.getBoolean("bold", true))
-        private set
-    var textShadow by mutableStateOf(prefs.getBoolean("textShadow", true))
-        private set
-    var dim by mutableFloatStateOf(prefs.getFloat("dim", 0.35f))
-        private set
+    // ---------------- Text style: shared, or a month's own ----------------
+
+    private var sharedLook by mutableStateOf(
+        TextLook(
+            fontId = prefs.getString("font", "system") ?: "system",
+            color = prefs.getInt("fontColor", Color.White.toArgb()),
+            scale = prefs.getFloat("textScale", 1.0f),
+            bold = prefs.getBoolean("bold", true),
+            shadow = prefs.getBoolean("textShadow", true),
+            dim = prefs.getFloat("dim", 0.35f),
+        )
+    )
+
+    /** Months (1-12) that have their own text style instead of the shared one. */
+    val monthLooks = mutableStateMapOf<Int, TextLook>().apply {
+        for (m in 1..12) TextLook.decode(prefs.getString("look_$m", null))?.let { put(m, it) }
+    }
+
+    /** The month currently on screen; decides which style is used. */
+    var displayMonth by mutableIntStateOf(LocalDate.now().monthValue)
+
+    private val look: TextLook get() = monthLooks[displayMonth] ?: sharedLook
+
+    val fontColor: Color get() = Color(look.color)
+    val bold: Boolean get() = look.bold
+    val textShadow: Boolean get() = look.shadow
+    val dim: Float get() = look.dim
+    val fontId: String get() = look.fontId
+    val textScale: Float get() = look.scale
+
+    fun hasOwnLook(month: Int) = monthLooks.containsKey(month)
+
+    /** Gives [month] its own copy of the current style, to change separately. */
+    fun giveOwnLook(month: Int) {
+        if (!monthLooks.containsKey(month)) {
+            monthLooks[month] = sharedLook
+            prefs.edit().putString("look_$month", sharedLook.encode()).apply()
+        }
+    }
+
+    /** Puts [month] back on the shared style. */
+    fun removeOwnLook(month: Int) {
+        monthLooks.remove(month)
+        prefs.edit().remove("look_$month").apply()
+    }
+
+    /** Changes the style for the month on screen if it has its own, otherwise the shared one. */
+    private fun changeLook(change: (TextLook) -> TextLook) {
+        val m = displayMonth
+        val own = monthLooks[m]
+        if (own != null) {
+            val next = change(own)
+            monthLooks[m] = next
+            prefs.edit().putString("look_$m", next.encode()).apply()
+        } else {
+            val next = change(sharedLook)
+            sharedLook = next
+            prefs.edit()
+                .putString("font", next.fontId)
+                .putInt("fontColor", next.color)
+                .putFloat("textScale", next.scale)
+                .putBoolean("bold", next.bold)
+                .putBoolean("textShadow", next.shadow)
+                .putFloat("dim", next.dim)
+                .apply()
+        }
+    }
+
+    fun updateFont(id: String) = changeLook { it.copy(fontId = id) }
+    fun updateTextScale(value: Float) = changeLook { it.copy(scale = value) }
+    fun updateFontColor(color: Color) = changeLook { it.copy(color = color.toArgb()) }
+    fun updateBold(on: Boolean) = changeLook { it.copy(bold = on) }
+    fun updateTextShadow(on: Boolean) = changeLook { it.copy(shadow = on) }
+    fun updateDim(value: Float) = changeLook { it.copy(dim = value) }
+
+    /** Applies a whole style template at once. */
+    fun applyStyle(font: String, color: Color, scale: Float, bold: Boolean, shadow: Boolean) =
+        changeLook { it.copy(fontId = font, color = color.toArgb(), scale = scale, bold = bold, shadow = shadow) }
+
+    // ---------------- Photo position and zoom ----------------
+
+    /** Photo file name -> how it's moved and zoomed. */
+    private val crops = mutableStateMapOf<String, PhotoCrop>().apply {
+        prefs.all.forEach { (key, value) ->
+            if (key.startsWith("crop_") && value is String) {
+                PhotoCrop.decode(value)?.let { put(key.removePrefix("crop_"), it) }
+            }
+        }
+    }
+
+    fun cropFor(file: File): PhotoCrop = crops[file.name] ?: PhotoCrop()
+
+    fun updateCrop(file: File, crop: PhotoCrop) {
+        crops[file.name] = crop
+        prefs.edit().putString("crop_${file.name}", crop.encode()).apply()
+    }
     var shuffleFrequency by mutableStateOf(
         ShuffleFrequency.entries.firstOrNull { it.name == prefs.getString("shuffle", null) }
             ?: ShuffleFrequency.DAILY
@@ -92,51 +180,6 @@ class AppState(context: Context) {
         for (m in 1..12) prefs.getString("pin_$m", null)?.let { put(m, it) }
     }
 
-    /** Font for text over photos (an id from FontChoices) and text size (1.0 = normal). */
-    var fontId by mutableStateOf(prefs.getString("font", "system") ?: "system")
-        private set
-    var textScale by mutableFloatStateOf(prefs.getFloat("textScale", 1.0f))
-        private set
-
-    fun updateFont(id: String) {
-        fontId = id
-        prefs.edit().putString("font", id).apply()
-    }
-
-    fun updateTextScale(value: Float) {
-        textScale = value
-        prefs.edit().putFloat("textScale", value).apply()
-    }
-
-    /** Applies a whole style template at once. */
-    fun applyStyle(font: String, color: Color, scale: Float, bold: Boolean, shadow: Boolean) {
-        updateFont(font)
-        updateFontColor(color)
-        updateTextScale(scale)
-        updateBold(bold)
-        updateTextShadow(shadow)
-    }
-
-    fun updateFontColor(color: Color) {
-        fontColor = color
-        prefs.edit().putInt("fontColor", color.toArgb()).apply()
-    }
-
-    fun updateBold(on: Boolean) {
-        bold = on
-        prefs.edit().putBoolean("bold", on).apply()
-    }
-
-    fun updateTextShadow(on: Boolean) {
-        textShadow = on
-        prefs.edit().putBoolean("textShadow", on).apply()
-    }
-
-    fun updateDim(value: Float) {
-        dim = value
-        prefs.edit().putFloat("dim", value).apply()
-    }
-
     fun updateShuffleFrequency(value: ShuffleFrequency) {
         shuffleFrequency = value
         prefs.edit().putString("shuffle", value.name).apply()
@@ -160,6 +203,8 @@ class AppState(context: Context) {
 
     fun removePhoto(file: File) {
         photos.remove(file)
+        crops.remove(file.name)
+        prefs.edit().remove("crop_${file.name}").apply()
         pins.filterValues { it == file.name }.keys.toList().forEach { unpin(it) }
         photoStore.delete(file)
     }
@@ -180,5 +225,49 @@ class AppState(context: Context) {
         }
         val seed = period * 1_000_003L + month.year * 12L + month.monthValue
         return photos[Random(seed).nextInt(photos.size)]
+    }
+}
+
+/** One text style: font, color, size, bold, shadow and how much the photo is dimmed. */
+data class TextLook(
+    val fontId: String,
+    val color: Int,
+    val scale: Float,
+    val bold: Boolean,
+    val shadow: Boolean,
+    val dim: Float,
+) {
+    fun encode() = listOf(fontId, color, scale, bold, shadow, dim).joinToString("|")
+
+    companion object {
+        fun decode(text: String?): TextLook? {
+            val p = text?.split("|") ?: return null
+            if (p.size != 6) return null
+            return try {
+                TextLook(p[0], p[1].toInt(), p[2].toFloat(), p[3].toBoolean(), p[4].toBoolean(), p[5].toFloat())
+            } catch (e: Exception) {
+                null
+            }
+        }
+    }
+}
+
+/**
+ * How a photo is framed: [zoom] 1 = fills the screen, and the point of the photo
+ * at the center of the screen, as fractions of its width ([cx]) and height ([cy]).
+ */
+data class PhotoCrop(val zoom: Float = 1f, val cx: Float = 0.5f, val cy: Float = 0.5f) {
+    fun encode() = "$zoom,$cx,$cy"
+
+    companion object {
+        fun decode(text: String): PhotoCrop? {
+            val p = text.split(",")
+            if (p.size != 3) return null
+            return try {
+                PhotoCrop(p[0].toFloat(), p[1].toFloat(), p[2].toFloat())
+            } catch (e: Exception) {
+                null
+            }
+        }
     }
 }

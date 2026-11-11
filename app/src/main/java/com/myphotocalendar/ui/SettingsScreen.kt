@@ -53,6 +53,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -97,9 +98,10 @@ private val FontColors = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(state: AppState, monthOffset: Int, onBack: () -> Unit) {
+fun SettingsScreen(state: AppState, monthOffset: Int, onBack: () -> Unit, onAdjustPhoto: (File) -> Unit) {
     val today = remember { LocalDate.now() }
     val month = remember(monthOffset) { YearMonth.from(today).plusMonths(monthOffset.toLong()) }
+    LaunchedEffect(month) { state.displayMonth = month.monthValue }
     val monthName = month.month.getDisplayName(DateTextStyle.FULL, Locale.getDefault())
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -163,10 +165,21 @@ fun SettingsScreen(state: AppState, monthOffset: Int, onBack: () -> Unit) {
                     .height(170.dp)
                     .clip(RoundedCornerShape(16.dp))
             ) {
-                PhotoBackground(state, state.photoFor(month, today), Modifier.fillMaxSize())
+                val shownPhoto = state.photoFor(month, today)
+                PhotoBackground(state, shownPhoto, Modifier.fillMaxSize())
                 Column(Modifier.align(Alignment.BottomStart).padding(16.dp)) {
                     Text(monthLabel(month), style = state.overlayTextStyle().sized(26))
                     Text("Sun  Mon  Tue  Wed  Thu  Fri  Sat", style = state.overlayTextStyle().sized(13))
+                }
+                if (shownPhoto != null) {
+                    Button(
+                        onClick = { onAdjustPhoto(shownPhoto) },
+                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                            containerColor = Color.Black.copy(alpha = 0.55f),
+                            contentColor = Color.White,
+                        ),
+                        modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
+                    ) { Text("Move & zoom", fontSize = 13.sp) }
                 }
             }
 
@@ -263,6 +276,37 @@ fun SettingsScreen(state: AppState, monthOffset: Int, onBack: () -> Unit) {
             // ---- Text and readability ----
             // ---- Text style ----
             Section("TEXT STYLE") {
+                val ownLook = state.hasOwnLook(month.monthValue)
+                Text("Style settings apply to", fontSize = 14.sp)
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                    SegmentedButton(
+                        selected = !ownLook,
+                        onClick = { state.removeOwnLook(month.monthValue) },
+                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                    ) { Text("All months") }
+                    SegmentedButton(
+                        selected = ownLook,
+                        onClick = { state.giveOwnLook(month.monthValue) },
+                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                    ) { Text("Only $monthName") }
+                }
+                Text(
+                    if (ownLook) "$monthName has its own style. Changes below (including dimming) affect only $monthName. Tap All months to go back to the shared style."
+                    else "Changes below affect every month that doesn't have its own style.",
+                    fontSize = 12.sp,
+                    color = Gray,
+                )
+                val customMonths = state.monthLooks.keys.sorted()
+                if (customMonths.isNotEmpty()) {
+                    Text(
+                        "Months with their own style: " + customMonths.joinToString(", ") {
+                            java.time.Month.of(it).getDisplayName(DateTextStyle.SHORT, Locale.getDefault())
+                        },
+                        fontSize = 12.sp,
+                        color = Gray,
+                    )
+                }
+
                 Text("Templates", fontSize = 14.sp)
                 Text("Tap one to use its font, color and size. You can fine-tune it below.", fontSize = 12.sp, color = Gray)
                 val previewPhoto = state.photoFor(month, today)

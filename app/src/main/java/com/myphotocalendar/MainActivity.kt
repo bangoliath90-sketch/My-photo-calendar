@@ -30,6 +30,7 @@ import com.myphotocalendar.data.AppState
 import com.myphotocalendar.ui.DayScreen
 import com.myphotocalendar.ui.EventEditScreen
 import com.myphotocalendar.ui.MonthScreen
+import com.myphotocalendar.ui.PhotoAdjustScreen
 import com.myphotocalendar.ui.ScheduleScreen
 import com.myphotocalendar.ui.SettingsScreen
 import com.myphotocalendar.ui.ViewMode
@@ -40,6 +41,7 @@ import java.time.LocalTime
 /** The pages of the app. The month view is always at the bottom of the stack. */
 sealed interface Screen {
     data object Settings : Screen
+    data class AdjustPhoto(val path: String) : Screen
     data class Day(val date: LocalDate) : Screen
     data class EditEvent(
         val eventId: Long?,
@@ -158,6 +160,13 @@ class MainActivity : ComponentActivity() {
                         state = appState,
                         monthOffset = monthOffset,
                         onBack = { back() },
+                        onAdjustPhoto = { stack.add(Screen.AdjustPhoto(it.path)) },
+                    )
+                    is Screen.AdjustPhoto -> PhotoAdjustScreen(
+                        state = appState,
+                        file = java.io.File(top.path),
+                        month = java.time.YearMonth.now().plusMonths(monthOffset.toLong()),
+                        onDone = { back() },
                     )
                     is Screen.Day -> DayScreen(
                         state = appState,

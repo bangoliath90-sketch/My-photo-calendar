@@ -87,6 +87,7 @@ fun MonthScreen(
     }
 
     val shown = thisMonth.plusMonths((pagerState.currentPage - CENTER_PAGE).toLong())
+    LaunchedEffect(shown) { state.displayMonth = shown.monthValue }
     val photo = state.photoFor(shown, today)
     val textStyle = state.overlayTextStyle()
 

@@ -87,7 +87,7 @@ class CalendarWidget : GlanceAppWidget() {
             .take(8)
         return WidgetData(
             today = today,
-            photo = state.photoFor(YearMonth.from(today), today)?.let { decodeSmall(it) },
+            photo = state.photoFor(YearMonth.from(today), today)?.let { f -> decodeSmall(f)?.let { framed(it, state.cropFor(f)) } },
             events = events,
             fontColor = state.fontColor,
             bold = state.bold,
@@ -95,6 +95,16 @@ class CalendarWidget : GlanceAppWidget() {
             dim = state.dim,
             hasPermission = state.calendar.hasPermission,
         )
+    }
+
+    /** Applies the photo's zoom and center, so the widget shows the part you chose. */
+    private fun framed(bmp: Bitmap, crop: com.myphotocalendar.data.PhotoCrop): Bitmap {
+        if (crop.zoom <= 1.01f && crop.cx == 0.5f && crop.cy == 0.5f) return bmp
+        val w = (bmp.width / crop.zoom).toInt().coerceIn(1, bmp.width)
+        val h = (bmp.height / crop.zoom).toInt().coerceIn(1, bmp.height)
+        val x = (crop.cx * bmp.width - w / 2f).toInt().coerceIn(0, bmp.width - w)
+        val y = (crop.cy * bmp.height - h / 2f).toInt().coerceIn(0, bmp.height - h)
+        return Bitmap.createBitmap(bmp, x, y, w, h)
     }
 
     /** Widgets have a small memory limit, so the photo is shrunk first. */

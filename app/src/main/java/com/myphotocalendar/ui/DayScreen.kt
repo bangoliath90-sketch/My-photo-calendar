@@ -28,6 +28,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
@@ -71,6 +72,7 @@ fun DayScreen(
         value = withContext(Dispatchers.IO) { state.calendar.eventsBetween(date, date) }
     }
     val isToday = date == LocalDate.now()
+    LaunchedEffect(date) { state.displayMonth = date.monthValue }
     val look = state.viewLook(state.photoOnDay)
 
     Box(Modifier.fillMaxSize().background(Color(0xFFF6F6F8))) {

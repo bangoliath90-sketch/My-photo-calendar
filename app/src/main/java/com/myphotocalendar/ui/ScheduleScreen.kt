@@ -28,6 +28,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -63,6 +64,7 @@ fun ScheduleScreen(
     onNewEvent: (LocalDate) -> Unit,
 ) {
     val today = remember { LocalDate.now() }
+    LaunchedEffect(Unit) { state.displayMonth = today.monthValue }
     val look = state.viewLook(state.photoOnSchedule)
 
     val rows by produceState<List<ScheduleRow>?>(null, state.calendar.version, state.calendar.hasPermission) {

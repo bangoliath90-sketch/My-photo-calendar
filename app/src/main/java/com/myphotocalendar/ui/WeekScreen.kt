@@ -147,6 +147,7 @@ fun WeekScreen(
     LaunchedEffect(pagerState.currentPage) { onWeekOffsetChange(pagerState.currentPage - CENTER) }
 
     val shownStart = thisWeek.plusWeeks((pagerState.currentPage - CENTER).toLong())
+    LaunchedEffect(shownStart) { state.displayMonth = shownStart.plusDays(3).monthValue }
     val look = state.viewLook(state.photoOnWeek)
 
     Box(Modifier.fillMaxSize().background(if (look.photo) Color.Transparent else Color.White)) {
