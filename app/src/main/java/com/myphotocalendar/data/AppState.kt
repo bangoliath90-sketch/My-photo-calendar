@@ -83,6 +83,31 @@ class AppState(context: Context) {
         for (m in 1..12) prefs.getString("pin_$m", null)?.let { put(m, it) }
     }
 
+    /** Font for text over photos (an id from FontChoices) and text size (1.0 = normal). */
+    var fontId by mutableStateOf(prefs.getString("font", "system") ?: "system")
+        private set
+    var textScale by mutableFloatStateOf(prefs.getFloat("textScale", 1.0f))
+        private set
+
+    fun updateFont(id: String) {
+        fontId = id
+        prefs.edit().putString("font", id).apply()
+    }
+
+    fun updateTextScale(value: Float) {
+        textScale = value
+        prefs.edit().putFloat("textScale", value).apply()
+    }
+
+    /** Applies a whole style template at once. */
+    fun applyStyle(font: String, color: Color, scale: Float, bold: Boolean, shadow: Boolean) {
+        updateFont(font)
+        updateFontColor(color)
+        updateTextScale(scale)
+        updateBold(bold)
+        updateTextShadow(shadow)
+    }
+
     fun updateFontColor(color: Color) {
         fontColor = color
         prefs.edit().putInt("fontColor", color.toArgb()).apply()

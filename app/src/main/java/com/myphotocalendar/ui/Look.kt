@@ -13,6 +13,8 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.isSpecified
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.myphotocalendar.data.AppState
 import java.io.File
@@ -23,6 +25,8 @@ fun AppState.darkText(): Boolean = fontColor.luminance() < 0.5f
 /** The base text style for words drawn over the photo. */
 fun AppState.overlayTextStyle(): TextStyle = TextStyle(
     color = fontColor,
+    fontFamily = fontFamilyFor(fontId),
+    fontSize = (16f * textScale).sp,
     fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
     shadow = if (textShadow) {
         Shadow(
@@ -34,6 +38,12 @@ fun AppState.overlayTextStyle(): TextStyle = TextStyle(
         null
     },
 )
+
+/** The same style at a size relative to a normal 16 sp, keeping the chosen text size. */
+fun TextStyle.sized(size: Int): TextStyle {
+    val base = if (fontSize.isSpecified) fontSize.value else 16f
+    return copy(fontSize = (base * size / 16f).sp)
+}
 
 /** Grid lines that show up on either a dark or light photo. */
 fun AppState.lineColor(): Color =

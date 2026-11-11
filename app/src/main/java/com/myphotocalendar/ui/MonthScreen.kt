@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -107,7 +108,7 @@ fun MonthScreen(
                 ViewMenuButton(ViewMode.MONTH, state.fontColor, onSwitchView)
                 Text(
                     text = monthLabel(shown),
-                    style = textStyle.copy(fontSize = 24.sp),
+                    style = textStyle.sized(24),
                     modifier = Modifier.weight(1f),
                 )
                 IconButton(onClick = {
@@ -124,7 +125,7 @@ fun MonthScreen(
                 listOf("S", "M", "T", "W", "T", "F", "S").forEach { letter ->
                     Text(
                         text = letter,
-                        style = textStyle.copy(fontSize = 13.sp),
+                        style = textStyle.sized(13),
                         textAlign = TextAlign.Center,
                         modifier = Modifier.weight(1f),
                     )
@@ -280,8 +281,8 @@ private fun DayCell(
                 )
             }
         } else {
-            Box(Modifier.height(28.dp), contentAlignment = Alignment.Center) {
-                Text(date.dayOfMonth.toString(), style = textStyle.copy(fontSize = 14.sp))
+            Box(Modifier.heightIn(min = 28.dp), contentAlignment = Alignment.Center) {
+                Text(date.dayOfMonth.toString(), style = textStyle.sized(14), maxLines = 1)
             }
         }
         events.take(MAX_CHIPS).forEach { ev ->
@@ -299,7 +300,7 @@ private fun DayCell(
             )
         }
         if (events.size > MAX_CHIPS) {
-            Text("+${events.size - MAX_CHIPS}", style = textStyle.copy(fontSize = 10.sp))
+            Text("+${events.size - MAX_CHIPS}", style = textStyle.sized(10))
         }
     }
 }

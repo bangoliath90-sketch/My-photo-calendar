@@ -98,7 +98,7 @@ fun ScheduleScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 ViewMenuButton(ViewMode.SCHEDULE, look.iconTint, onSwitchView)
-                Text("Schedule", style = look.text.copy(fontSize = 22.sp), modifier = Modifier.weight(1f))
+                Text("Schedule", style = look.text.sized(22), modifier = Modifier.weight(1f))
                 IconButton(onClick = onOpenSettings) {
                     Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = look.iconTint)
                 }
@@ -108,7 +108,7 @@ fun ScheduleScreen(
             when {
                 !state.calendar.hasPermission -> Text(
                     "Calendar access is off. Switch to the month view and tap Allow access.",
-                    style = look.text.copy(fontSize = 15.sp),
+                    style = look.text.sized(15),
                     modifier = Modifier.padding(20.dp),
                 )
                 list == null -> Text("Loading…", style = look.text, modifier = Modifier.padding(20.dp))
@@ -125,7 +125,7 @@ fun ScheduleScreen(
                         when (row) {
                             is ScheduleRow.MonthHeader -> Text(
                                 monthLabel(row.month),
-                                style = look.text.copy(fontSize = 18.sp, fontWeight = FontWeight.Bold),
+                                style = look.text.sized(18).copy(fontWeight = FontWeight.Bold),
                                 modifier = Modifier.padding(start = 8.dp, top = 18.dp, bottom = 6.dp),
                             )
                             is ScheduleRow.Day -> DayBlock(row, today, look, onDayClick, onOpenEvent)
@@ -159,7 +159,7 @@ private fun DayBlock(
         ) {
             Text(
                 row.date.format(DateTimeFormatter.ofPattern("EEE")),
-                style = look.text.copy(fontSize = 12.sp, color = if (isToday) TodayBlue else look.subtle),
+                style = look.text.sized(12).copy(color = if (isToday) TodayBlue else look.subtle),
             )
             if (isToday) {
                 Box(Modifier.size(32.dp).background(TodayBlue, CircleShape), contentAlignment = Alignment.Center) {
@@ -167,7 +167,7 @@ private fun DayBlock(
                 }
             } else {
                 Box(Modifier.height(32.dp), contentAlignment = Alignment.Center) {
-                    Text(row.date.dayOfMonth.toString(), style = look.text.copy(fontSize = 16.sp))
+                    Text(row.date.dayOfMonth.toString(), style = look.text.sized(16))
                 }
             }
         }
@@ -175,7 +175,7 @@ private fun DayBlock(
             if (row.events.isEmpty()) {
                 Text(
                     "Nothing scheduled today",
-                    style = look.text.copy(fontSize = 14.sp, color = look.subtle),
+                    style = look.text.sized(14).copy(color = look.subtle),
                     modifier = Modifier.padding(top = 18.dp),
                 )
             }

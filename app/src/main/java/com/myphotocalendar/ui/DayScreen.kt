@@ -89,10 +89,10 @@ fun DayScreen(
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = look.iconTint)
                 }
                 Column(Modifier.weight(1f)) {
-                    Text(date.format(dayTitleFormat), style = look.text.copy(fontSize = 20.sp))
+                    Text(date.format(dayTitleFormat), style = look.text.sized(20))
                     Text(
                         if (isToday) "Today" else date.year.toString(),
-                        style = look.text.copy(fontSize = 13.sp, color = if (isToday && !look.photo) TodayBlue else look.subtle),
+                        style = look.text.sized(13).copy(color = if (isToday && !look.photo) TodayBlue else look.subtle),
                     )
                 }
                 IconButton(onClick = { onDateChange(date.minusDays(1)) }) {
@@ -107,12 +107,12 @@ fun DayScreen(
                 Text(
                     "Calendar access is off, so events can't be shown or added. Go back to the month view and tap Allow access.",
                     modifier = Modifier.padding(20.dp),
-                    style = look.text.copy(fontSize = 15.sp),
+                    style = look.text.sized(15),
                 )
             } else if (events.isEmpty()) {
                 Column(Modifier.fillMaxWidth().padding(top = 80.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Nothing scheduled", style = look.text.copy(fontSize = 18.sp))
-                    Text("Tap Add event to schedule something.", style = look.text.copy(fontSize = 14.sp, color = look.subtle))
+                    Text("Nothing scheduled", style = look.text.sized(18))
+                    Text("Tap Add event to schedule something.", style = look.text.sized(14).copy(color = look.subtle))
                 }
             } else {
                 LazyColumn(

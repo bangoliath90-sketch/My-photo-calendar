@@ -159,7 +159,7 @@ fun WeekScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 ViewMenuButton(ViewMode.WEEK, look.iconTint, onSwitchView)
-                Text(weekTitle(shownStart), style = look.text.copy(fontSize = 22.sp), modifier = Modifier.weight(1f))
+                Text(weekTitle(shownStart), style = look.text.sized(22), modifier = Modifier.weight(1f))
                 IconButton(onClick = { scope.launch { pagerState.animateScrollToPage(CENTER) } }) {
                     Icon(Icons.Filled.DateRange, contentDescription = "Go to this week", tint = look.iconTint)
                 }
@@ -216,7 +216,7 @@ private fun WeekPage(
                 ) {
                     Text(
                         day.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault()).take(3),
-                        style = look.text.copy(fontSize = 12.sp, color = if (day == today) TodayBlue else look.subtle),
+                        style = look.text.sized(12).copy(color = if (day == today) TodayBlue else look.subtle),
                     )
                     if (day == today) {
                         Box(Modifier.size(30.dp).background(TodayBlue, CircleShape), contentAlignment = Alignment.Center) {
@@ -224,7 +224,7 @@ private fun WeekPage(
                         }
                     } else {
                         Box(Modifier.height(30.dp), contentAlignment = Alignment.Center) {
-                            Text(day.dayOfMonth.toString(), style = look.text.copy(fontSize = 15.sp))
+                            Text(day.dayOfMonth.toString(), style = look.text.sized(15))
                         }
                     }
                 }
@@ -256,7 +256,7 @@ private fun WeekPage(
                         if (list.size > 2) {
                             Text(
                                 "+${list.size - 2}",
-                                style = look.text.copy(fontSize = 10.sp),
+                                style = look.text.sized(10),
                                 modifier = Modifier.clickable { onDayClick(days[i]) },
                             )
                         }
@@ -278,7 +278,7 @@ private fun WeekPage(
                         if (h > 0) {
                             Text(
                                 hourLabel(h),
-                                style = look.text.copy(fontSize = 10.sp, color = look.subtle, fontWeight = FontWeight.Normal),
+                                style = look.text.sized(10).copy(color = look.subtle, fontWeight = FontWeight.Normal),
                                 textAlign = TextAlign.End,
                                 modifier = Modifier.fillMaxWidth().offset(y = (-7).dp).padding(end = 6.dp),
                             )

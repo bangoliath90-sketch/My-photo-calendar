@@ -18,7 +18,7 @@ Every change pushed to `main` builds a new version automatically (see the **Acti
 - Add photos (including from Google Photos) through Android's photo picker
 - Each month either shuffles through all your photos or uses one photo you choose (repeats every year)
 - Shuffle timing: each open, daily, weekly or monthly
-- Dim slider, font color, bold and text shadow
+- Text style templates, 14 fonts, text size, any font color, bold, text shadow and a dim slider
 - Your Google Calendar events shown on the month view (through the phone's synced calendar)
 - Tap any day to see its schedule; add, edit and delete events with times, calendar, reminder, location and notes
 
@@ -31,3 +31,7 @@ Coming next: the app's own reminders, the widget, and photo move & zoom.
 
 - Written in Kotlin with Jetpack Compose.
 - `keystore/` holds the app's signing key. It's kept in this (private) repository so every build can install over the previous one.
+
+## Fonts
+
+The extra fonts (Montserrat, Oswald, Bebas Neue, Comfortaa, Playfair Display, Lora, Abril Fatface, Lobster, Pacifico, Dancing Script, Caveat, Great Vibes) come from [Google Fonts](https://github.com/google/fonts) under the SIL Open Font License. `scripts/get-fonts.sh` downloads them during each build.

@@ -20,6 +20,15 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -156,8 +165,8 @@ fun SettingsScreen(state: AppState, monthOffset: Int, onBack: () -> Unit) {
             ) {
                 PhotoBackground(state, state.photoFor(month, today), Modifier.fillMaxSize())
                 Column(Modifier.align(Alignment.BottomStart).padding(16.dp)) {
-                    Text(monthLabel(month), style = state.overlayTextStyle().copy(fontSize = 26.sp))
-                    Text("Sun  Mon  Tue  Wed  Thu  Fri  Sat", style = state.overlayTextStyle().copy(fontSize = 13.sp))
+                    Text(monthLabel(month), style = state.overlayTextStyle().sized(26))
+                    Text("Sun  Mon  Tue  Wed  Thu  Fri  Sat", style = state.overlayTextStyle().sized(13))
                 }
             }
 
@@ -252,6 +261,36 @@ fun SettingsScreen(state: AppState, monthOffset: Int, onBack: () -> Unit) {
             }
 
             // ---- Text and readability ----
+            // ---- Text style ----
+            Section("TEXT STYLE") {
+                Text("Templates", fontSize = 14.sp)
+                Text("Tap one to use its font, color and size. You can fine-tune it below.", fontSize = 12.sp, color = Gray)
+                val previewPhoto = state.photoFor(month, today)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(StyleTemplates) { t ->
+                        TemplateCard(
+                            state = state,
+                            template = t,
+                            photo = previewPhoto,
+                            month = month,
+                            selected = state.fontId == t.fontId && state.fontColor == t.color &&
+                                state.textScale == t.scale && state.bold == t.bold && state.textShadow == t.shadow,
+                            onClick = { state.applyStyle(t.fontId, t.color, t.scale, t.bold, t.shadow) },
+                        )
+                    }
+                }
+
+                FontChooser(state)
+
+                Text("Text size · ${(state.textScale * 100).toInt()}%", fontSize = 14.sp)
+                Slider(
+                    value = state.textScale,
+                    onValueChange = { state.updateTextScale((it * 20).toInt() / 20f) },
+                    valueRange = 0.8f..1.5f,
+                    steps = 13,
+                )
+            }
+
             Section("TEXT AND READABILITY") {
                 Text("Dim photo · ${(state.dim * 100).toInt()}%", fontSize = 14.sp)
                 Slider(
@@ -294,6 +333,8 @@ fun SettingsScreen(state: AppState, monthOffset: Int, onBack: () -> Unit) {
                         }
                     }
                 }
+
+                CustomColor(state)
 
                 SwitchRow("Bold text", state.bold) { state.updateBold(it) }
                 SwitchRow("Text shadow", state.textShadow) { state.updateTextShadow(it) }
@@ -428,4 +469,110 @@ private fun appVersion(context: android.content.Context): String = try {
     context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "?"
 } catch (e: Exception) {
     "?"
+}
+
+@Composable
+private fun TemplateCard(
+    state: AppState,
+    template: StyleTemplate,
+    photo: File?,
+    month: YearMonth,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val style = TextStyle(
+        color = template.color,
+        fontFamily = fontFamilyFor(template.fontId),
+        fontWeight = if (template.bold) FontWeight.Bold else FontWeight.Normal,
+        fontSize = (18f * template.scale).sp,
+        shadow = if (template.shadow) {
+            Shadow(Color.Black.copy(alpha = 0.75f), Offset(0f, 2f), 6f)
+        } else {
+            null
+        },
+    )
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            Modifier
+                .size(width = 120.dp, height = 84.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .border(
+                    BorderStroke(if (selected) 3.dp else 0.dp, if (selected) Color(0xFF1A73E8) else Color.Transparent),
+                    RoundedCornerShape(12.dp),
+                )
+                .clickable(onClickLabel = "Use ${template.name} style") { onClick() }
+        ) {
+            if (photo != null) {
+                AsyncImage(model = photo, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            } else {
+                Box(Modifier.fillMaxSize().background(Color(0xFF6B7A8F)))
+            }
+            val darkText = template.color.luminance() < 0.5f
+            Box(Modifier.fillMaxSize().background((if (darkText) Color.White else Color.Black).copy(alpha = 0.3f)))
+            Text(
+                month.month.getDisplayName(DateTextStyle.SHORT, Locale.getDefault()) + " 11",
+                style = style,
+                maxLines = 1,
+                modifier = Modifier.align(Alignment.Center),
+            )
+        }
+        Text(template.name, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+    }
+}
+
+@Composable
+private fun FontChooser(state: AppState) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .background(Color(0xFFF1F3F4), RoundedCornerShape(12.dp))
+                .clickable { open = true }
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Font", fontSize = 14.sp, modifier = Modifier.weight(0.3f))
+            Text(
+                fontNameFor(state.fontId),
+                fontFamily = fontFamilyFor(state.fontId),
+                fontSize = 18.sp,
+                color = Color(0xFF1A73E8),
+                modifier = Modifier.weight(0.7f),
+            )
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            FontChoices.forEach { f ->
+                DropdownMenuItem(
+                    text = { Text(f.name, fontFamily = f.family, fontSize = 20.sp) },
+                    trailingIcon = if (f.id == state.fontId) ({ Icon(Icons.Filled.Check, contentDescription = "Selected") }) else null,
+                    onClick = {
+                        state.updateFont(f.id)
+                        open = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+/** Any color, picked with a hue slider and a lightness slider. */
+@Composable
+private fun CustomColor(state: AppState) {
+    var open by remember { mutableStateOf(false) }
+    var hue by remember { mutableFloatStateOf(200f) }
+    var light by remember { mutableFloatStateOf(0.75f) }
+    val color = Color.hsl(hue, 0.85f, light)
+    TextButton(onClick = { open = !open }) { Text(if (open) "Hide custom color" else "Custom color…") }
+    if (open) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(36.dp).background(color, CircleShape).border(1.dp, Color(0xFFC4C7CC), CircleShape))
+            Spacer(Modifier.size(12.dp))
+            Button(onClick = { state.updateFontColor(color) }) { Text("Use this color") }
+        }
+        Text("Color", fontSize = 13.sp, color = Gray)
+        Slider(value = hue, onValueChange = { hue = it }, valueRange = 0f..360f)
+        Text("Light or dark", fontSize = 13.sp, color = Gray)
+        Slider(value = light, onValueChange = { light = it }, valueRange = 0.1f..0.95f)
+    }
 }

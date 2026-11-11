@@ -16,6 +16,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import com.myphotocalendar.data.AppState
 
 enum class ViewMode(val label: String) {
@@ -73,7 +75,12 @@ fun AppState.viewLook(photoOn: Boolean): ViewLook =
     } else {
         ViewLook(
             photo = false,
-            text = TextStyle(color = PlainText),
+            text = TextStyle(
+                color = PlainText,
+                fontFamily = fontFamilyFor(fontId),
+                fontSize = (16f * textScale).sp,
+                fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
+            ),
             subtle = Color(0xFF5F6368),
             line = Color(0xFFE0E0E0),
             iconTint = PlainText,
