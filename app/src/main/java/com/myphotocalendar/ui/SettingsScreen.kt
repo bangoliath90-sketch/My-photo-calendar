@@ -348,6 +348,22 @@ fun SettingsScreen(state: AppState, monthOffset: Int, onBack: () -> Unit) {
                 SwitchRow("Schedule view", state.photoOnSchedule) { state.updatePhotoOnSchedule(it) }
             }
 
+            // ---- Reminders ----
+            Section("REMINDERS") {
+                SwitchRow("Show reminder notifications", state.notify) { state.updateNotify(it) }
+                Text(
+                    "Reminders appear at the time you set on each event. If your phone's calendar app also shows them, " +
+                        "you can turn off that app's notifications in your phone's Settings to avoid getting two.",
+                    fontSize = 12.sp,
+                    color = Gray,
+                )
+                val notifPermission = rememberNotificationPermission()
+                if (state.notify && !notifPermission.granted) {
+                    Text("Notifications are turned off for this app.", fontSize = 13.sp, color = Color(0xFFC5221F))
+                    TextButton(onClick = notifPermission.request) { Text("Allow notifications") }
+                }
+            }
+
             // ---- Calendars ----
             val calendars by produceState(emptyList<CalendarInfo>(), state.calendar.hasPermission) {
                 value = withContext(Dispatchers.IO) { state.calendar.allCalendars() }
@@ -574,5 +590,20 @@ private fun CustomColor(state: AppState) {
         Slider(value = hue, onValueChange = { hue = it }, valueRange = 0f..360f)
         Text("Light or dark", fontSize = 13.sp, color = Gray)
         Slider(value = light, onValueChange = { light = it }, valueRange = 0.1f..0.95f)
+    }
+}
+
+class NotificationPermission(val granted: Boolean, val request: () -> Unit)
+
+@Composable
+private fun rememberNotificationPermission(): NotificationPermission {
+    val context = LocalContext.current
+    fun check() = android.os.Build.VERSION.SDK_INT < 33 ||
+        androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) ==
+        android.content.pm.PackageManager.PERMISSION_GRANTED
+    var granted by remember { mutableStateOf(check()) }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted = check() }
+    return NotificationPermission(granted) {
+        if (android.os.Build.VERSION.SDK_INT >= 33) launcher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
     }
 }

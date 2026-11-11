@@ -25,7 +25,10 @@ Every change pushed to `main` builds a new version automatically (see the **Acti
 - Week and schedule views; show or hide calendars; photo option per view
 - Repeating events: create them, and change or delete one occurrence, the following ones, or the whole series
 
-Coming next: the app's own reminders, the widget, and photo move & zoom.
+- Reminder notifications from the app itself (tap one to open that day)
+- Home-screen widget with this month's photo and your next events
+
+Coming next: photo move & zoom and per-month styles.
 
 ## Notes
 

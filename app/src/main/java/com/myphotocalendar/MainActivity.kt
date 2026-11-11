@@ -1,7 +1,13 @@
 package com.myphotocalendar
 
 import android.Manifest
+import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import androidx.lifecycle.lifecycleScope
+import com.myphotocalendar.reminders.Reminders
+import com.myphotocalendar.widget.refreshWidgets
+import kotlinx.coroutines.launch
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -46,12 +52,33 @@ sealed interface Screen {
 class MainActivity : ComponentActivity() {
 
     private lateinit var appState: AppState
+    private var pendingOpenDate by mutableStateOf<LocalDate?>(null)
+
+    private fun readOpenDate(intent: Intent?) {
+        val day = intent?.getLongExtra(Reminders.EXTRA_OPEN_DATE, Long.MIN_VALUE) ?: Long.MIN_VALUE
+        if (day != Long.MIN_VALUE) {
+            pendingOpenDate = LocalDate.ofEpochDay(day)
+            intent?.removeExtra(Reminders.EXTRA_OPEN_DATE)
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        readOpenDate(intent)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // Keep the widget in step with any photo, style or event changes.
+        if (::appState.isInitialized) lifecycleScope.launch { refreshWidgets(applicationContext) }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         appState = AppState(applicationContext)
         appState.calendar.refreshPermission()
+        if (savedInstanceState == null) readOpenDate(intent)
 
         setContent {
             MaterialTheme(colorScheme = lightColorScheme(primary = Color(0xFF1A73E8))) {
@@ -70,9 +97,9 @@ class MainActivity : ComponentActivity() {
                 ) { appState.calendar.refreshPermission() }
 
                 fun requestCalendar() {
-                    permissionLauncher.launch(
-                        arrayOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR)
-                    )
+                    val wanted = mutableListOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR)
+                    if (Build.VERSION.SDK_INT >= 33) wanted += Manifest.permission.POST_NOTIFICATIONS
+                    permissionLauncher.launch(wanted.toTypedArray())
                 }
 
                 // Ask once when the app opens, if access hasn't been given yet.
@@ -85,6 +112,16 @@ class MainActivity : ComponentActivity() {
                 }
 
                 if (stack.isNotEmpty()) BackHandler { back() }
+
+                // Opened from a reminder notification: go to that day.
+                val openDate = pendingOpenDate
+                LaunchedEffect(openDate) {
+                    if (openDate != null) {
+                        stack.clear()
+                        stack.add(Screen.Day(openDate))
+                        pendingOpenDate = null
+                    }
+                }
 
                 when (val top = stack.lastOrNull()) {
                     null -> when (viewMode) {

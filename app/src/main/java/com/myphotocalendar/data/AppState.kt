@@ -45,6 +45,15 @@ class AppState(context: Context) {
     )
         private set
 
+    /** Whether this app shows its own reminder notifications. */
+    var notify by mutableStateOf(prefs.getBoolean("notify", true))
+        private set
+
+    fun updateNotify(on: Boolean) {
+        notify = on
+        prefs.edit().putBoolean("notify", on).apply()
+    }
+
     /** The view the app opens in: the last one you used. */
     val startView: String = prefs.getString("view", "MONTH") ?: "MONTH"
 
