@@ -45,6 +45,8 @@ data class EventItem(
     val color: Int,
     val location: String,
     val recurring: Boolean,
+    /** The event's notes (Google Calendar's description), as plain text. */
+    val notes: String = "",
     val startDate: LocalDate,
     val lastDate: LocalDate,
 ) {
@@ -63,6 +65,8 @@ data class EventDraft(
     val calendarId: Long? = null,
     val location: String = "",
     val description: String = "",
+    /** The notes exactly as stored, so formatting made in Google Calendar isn't lost if they aren't edited. */
+    val originalDescription: String? = null,
     /** Minutes before the event, or null for no reminder. */
     val reminderMinutes: Int? = 30,
     /** How it repeats (an RRULE without its end), or null if it doesn't. */
@@ -220,6 +224,7 @@ class CalendarRepo(private val context: Context) {
             Instances.EVENT_LOCATION,
             Instances.RRULE,
             Instances.CALENDAR_ID,
+            Instances.DESCRIPTION,
         )
         val hidden = hiddenCalendars
         val items = mutableListOf<EventItem>()
@@ -251,6 +256,7 @@ class CalendarRepo(private val context: Context) {
                         color = c.getInt(5),
                         location = c.getString(6) ?: "",
                         recurring = !c.getString(7).isNullOrBlank(),
+                        notes = notesToPlainText(c.getString(9)),
                         startDate = startDate,
                         lastDate = lastDate,
                     )
@@ -311,7 +317,8 @@ class CalendarRepo(private val context: Context) {
                     endTime = e.toLocalTime(),
                     calendarId = c.getLong(4),
                     location = c.getString(5) ?: "",
-                    description = c.getString(6) ?: "",
+                    description = notesToPlainText(c.getString(6)),
+                    originalDescription = c.getString(6),
                     reminderMinutes = null,
                     rule = rrule?.let { baseRule(it) },
                     repeatUntil = rrule?.let { untilDate(it) },
@@ -357,7 +364,10 @@ class CalendarRepo(private val context: Context) {
     private fun baseValues(d: EventDraft) = ContentValues().apply {
         put(Events.TITLE, d.title.trim())
         put(Events.EVENT_LOCATION, d.location.trim())
-        put(Events.DESCRIPTION, d.description.trim())
+        // Leave notes alone unless they were changed here, to keep Google Calendar's formatting and links.
+        if (d.originalDescription == null || d.description != notesToPlainText(d.originalDescription)) {
+            put(Events.DESCRIPTION, d.description.trim())
+        }
         put(Events.ALL_DAY, if (d.allDay) 1 else 0)
         put(Events.EVENT_TIMEZONE, if (d.allDay) "UTC" else ZoneId.systemDefault().id)
     }
@@ -492,4 +502,22 @@ class CalendarRepo(private val context: Context) {
             false
         }
     }
+}
+
+/**
+ * Google Calendar often saves notes as HTML (bold, links, line breaks). This turns
+ * that into plain text with the line breaks kept; plain notes pass through as they are.
+ */
+fun notesToPlainText(raw: String?): String {
+    if (raw.isNullOrBlank()) return ""
+    val looksLikeHtml = Regex("""<\s*(br|p|div|b|i|u|a|ul|ol|li|span|strong|em)\b[^>]*>""", RegexOption.IGNORE_CASE).containsMatchIn(raw) ||
+        Regex("""&(nbsp|amp|lt|gt|quot|#\d+);""").containsMatchIn(raw)
+    if (!looksLikeHtml) return raw.trim()
+    val withBreaks = raw
+        .replace(Regex("""<li[^>]*>""", RegexOption.IGNORE_CASE), "<br>• ")
+    return androidx.core.text.HtmlCompat.fromHtml(withBreaks, androidx.core.text.HtmlCompat.FROM_HTML_MODE_COMPACT)
+        .toString()
+        .replace('\u00A0', ' ')
+        .replace(Regex("""\n{3,}"""), "\n\n")
+        .trim()
 }

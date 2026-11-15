@@ -202,6 +202,15 @@ private fun DayBlock(
                         color = Color.White.copy(alpha = 0.9f),
                         fontSize = 13.sp,
                     )
+                    if (ev.notes.isNotBlank()) {
+                        Text(
+                            ev.notes,
+                            color = Color.White.copy(alpha = 0.85f),
+                            fontSize = 12.sp,
+                            maxLines = 2,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        )
+                    }
                 }
             }
         }

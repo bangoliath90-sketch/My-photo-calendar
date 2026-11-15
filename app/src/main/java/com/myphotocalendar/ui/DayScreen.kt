@@ -170,6 +170,16 @@ private fun EventRow(ev: EventItem, date: LocalDate, cardColor: Color, onClick: 
             Text(ev.title, fontSize = 16.sp, fontWeight = FontWeight.Medium)
             Text(whenText, fontSize = 14.sp, color = Gray)
             if (ev.location.isNotBlank()) Text(ev.location, fontSize = 13.sp, color = Gray)
+            if (ev.notes.isNotBlank()) {
+                Text(
+                    ev.notes,
+                    fontSize = 13.sp,
+                    color = Gray,
+                    maxLines = 3,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
         }
     }
 }
